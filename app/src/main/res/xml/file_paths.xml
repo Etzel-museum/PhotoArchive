@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The archive can live on internal storage or an SD card, so expose any path. -->
+<paths>
+    <root-path
+        name="root"
+        path="." />
+</paths>

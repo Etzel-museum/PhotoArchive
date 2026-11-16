@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A white photo (hills and sun) on a blue rounded square. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#378ADD"
+        android:pathData="M10,0h28a10,10 0,0 1,10 10v28a10,10 0,0 1,-10 10h-28a10,10 0,0 1,-10 -10v-28a10,10 0,0 1,10 -10z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M10,12h28v24h-28z" />
+    <path
+        android:fillColor="#1D9E75"
+        android:pathData="M12,34L20,23L26,30L30,26L36,34Z" />
+    <path
+        android:fillColor="#EF9F27"
+        android:pathData="M30,19m-3,0a3,3 0,1 0,6 0a3,3 0,1 0,-6 0" />
+</vector>
