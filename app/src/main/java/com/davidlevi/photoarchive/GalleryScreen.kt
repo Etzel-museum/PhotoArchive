@@ -22,10 +22,15 @@ interface Library {
     fun load(): List<MediaItem>
 }
 
+/** The archive plus WhatsApp's media shown in place (not moved), so both can be cleaned from one screen. */
 class ArchiveLibrary(private val a: MainActivity) : Library {
     override val title = "התמונות שלי"
     override val sources = listOf(Src.CAMERA, Src.SCREENSHOT, Src.WHATSAPP, Src.OTHER)
-    override fun load() = a.archive.items()
+    override fun load(): List<MediaItem> {
+        val groups = a.archive.groups()
+        val wa = WhatsApp.installs().flatMap { WhatsApp.mediaItems(it, groups, Src.WHATSAPP) }
+        return (a.archive.items() + wa).sortedByDescending { it.time }
+    }
 }
 
 /** A frame as tall as it is wide. */
@@ -54,6 +59,8 @@ class GalleryScreen(a: MainActivity, private val lib: Library) : Screen(a) {
     private var year: Int? = null
     private var type = 0 // 0 everything, 1 photos, 2 videos
     private var src: Src? = null
+    /** null = all; "" = WhatsApp files whose chat is unknown; else a chat name. */
+    private var group: String? = null
     private var bySize = false
 
     private val span = 4
@@ -64,6 +71,7 @@ class GalleryScreen(a: MainActivity, private val lib: Library) : Screen(a) {
     private val yearChip = chip { pickYear() }
     private val typeChip = chip { pickType() }
     private val srcChip = chip { pickSrc() }
+    private val groupChip = chip { pickGroup() }
     private val sortChip = chip { pickSort() }
     private val empty = a.label("", 17f, pal.muted).apply {
         gravity = Gravity.CENTER
@@ -110,7 +118,7 @@ class GalleryScreen(a: MainActivity, private val lib: Library) : Screen(a) {
             isHorizontalScrollBarEnabled = false
             addView(a.hbox().apply {
                 setPadding(a.dpi(12), 0, a.dpi(12), a.dpi(8))
-                for (c in listOf(yearChip, typeChip, srcChip, sortChip)) {
+                for (c in listOf(yearChip, typeChip, srcChip, groupChip, sortChip)) {
                     addView(c, lp(WRAP, WRAP).apply { marginEnd = a.dpi(8) })
                 }
             })
@@ -157,10 +165,16 @@ class GalleryScreen(a: MainActivity, private val lib: Library) : Screen(a) {
             setOnClickListener { onClick() }
         }
 
-    private fun matches(m: MediaItem, checkYear: Boolean = true, checkSrc: Boolean = true) =
+    private fun matches(
+        m: MediaItem,
+        checkYear: Boolean = true,
+        checkSrc: Boolean = true,
+        checkGroup: Boolean = true
+    ) =
         (!checkYear || year == null || m.ym / 100 == year) &&
             (type == 0 || (type == 2) == m.video) &&
-            (!checkSrc || src == null || m.src == src)
+            (!checkSrc || src == null || m.src == src) &&
+            (!checkGroup || group == null || (m.isWhatsApp && (m.group ?: "") == group))
 
     private fun refilter() {
         shown = all.filter { matches(it) }
@@ -170,6 +184,8 @@ class GalleryScreen(a: MainActivity, private val lib: Library) : Screen(a) {
         yearChip.text = "${year ?: "כל השנים"} ▾"
         typeChip.text = "${arrayOf("תמונות וסרטונים", "רק תמונות", "רק סרטונים")[type]} ▾"
         srcChip.text = "${src?.he ?: "כל המקורות"} ▾"
+        groupChip.text = "${groupLabel(group)} ▾"
+        groupChip.visibility = if (all.any { it.isWhatsApp }) View.VISIBLE else View.GONE
         sortChip.text = "${if (bySize) "הגדולים קודם" else "לפי תאריך"} ▾"
         subtitle.text = "${fmtCount(shown.size)} פריטים · ${fmtSize(shown.sumOf { it.size })}"
 
@@ -219,6 +235,31 @@ class GalleryScreen(a: MainActivity, private val lib: Library) : Screen(a) {
         }
         AlertDialog.Builder(a).setTitle("מקור")
             .setItems(labels.toTypedArray()) { _, i -> src = keys[i]; refilter() }.show()
+    }
+
+    private fun groupLabel(g: String?) = when (g) {
+        null -> "כל הקבוצות"
+        "" -> "קבוצה לא ידועה"
+        else -> g
+    }
+
+    /** WhatsApp chats, biggest first; the chat of a file is known only after its chat was exported here. */
+    private fun pickGroup() {
+        val counts = all.filter { it.isWhatsApp && matches(it, checkGroup = false) }
+            .groupingBy { it.group ?: "" }.eachCount()
+        val keys = listOf<String?>(null) + counts.keys.filter { it.isNotEmpty() }.sortedByDescending { counts[it] } +
+            (if (counts.containsKey("")) listOf("") else emptyList())
+        val labels = keys.map {
+            if (it == null) "כל הקבוצות" else "${groupLabel(it)} (${fmtCount(counts[it] ?: 0)})"
+        }
+        if (counts.keys.none { it.isNotEmpty() }) {
+            AlertDialog.Builder(a).setTitle("קבוצה בוואטסאפ")
+                .setMessage("עדיין לא תויגו קבוצות. איך מתייגים: מסך וואטסאפ ← „תיוג לפי קבוצה“.")
+                .setPositiveButton("אישור", null).show()
+            return
+        }
+        AlertDialog.Builder(a).setTitle("קבוצה בוואטסאפ")
+            .setItems(labels.toTypedArray()) { _, i -> group = keys[i]; refilter() }.show()
     }
 
     private fun pickSort() {

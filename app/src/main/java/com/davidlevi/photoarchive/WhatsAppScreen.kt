@@ -47,7 +47,28 @@ class WhatsAppScreen(a: MainActivity) : Screen(a) {
             backupCard(w)
             mediaCard(w)
         }
+        groupsCard(apps.first())
         driveCard(apps.first())
+    }
+
+    private fun groupsCard(w: WaApp) {
+        val c = card("תיוג לפי קבוצה")
+        c.addView(text(
+            "כדי לסנן תמונות לפי קבוצה, מייצאים את הקבוצה מוואטסאפ לכאן – פעם אחת לכל קבוצה חשובה. " +
+                "שום דבר לא מועתק; האפליקציה רק קוראת אילו קבצים שייכים לקבוצה."
+        ))
+        c.addView(text(
+            "בוואטסאפ, בתוך הקבוצה: ⋮ ← עוד ← ייצוא צ'אט ← „כולל מדיה“ ← בוחרים „תיוג קבוצה בארכיון“.",
+            pal.text
+        ))
+        val status = text("", pal.text2, 14f)
+        c.addView(status)
+        a.async({ a.archive.groups().values.groupingBy { it }.eachCount() }) { counts ->
+            status.text = if (counts.isEmpty()) "עדיין לא תויגו קבוצות."
+            else "תויגו: " + counts.entries.sortedByDescending { it.value }
+                .joinToString(" · ") { "${it.key} (${fmtCount(it.value)})" }
+        }
+        c.addView(a.button("פתיחת וואטסאפ", pal) { a.openApp(w.pkg) }, buttonLp())
     }
 
     private fun backupCard(w: WaApp) {
@@ -93,13 +114,13 @@ class WhatsAppScreen(a: MainActivity) : Screen(a) {
         val c = card("תמונות וסרטונים מוואטסאפ")
         val status = text("סופר…", pal.text)
         c.addView(status)
-        a.async({ WhatsApp.mediaItems(w) }) { items ->
+        a.async({ WhatsApp.mediaItems(w, a.archive.groups()) }) { items ->
             val photos = items.filter { !it.video }
             val videos = items.filter { it.video }
             status.text = "תמונות: ${fmtCount(photos.size)} · ${fmtSize(photos.sumOf { it.size })}\n" +
                 "סרטונים: ${fmtCount(videos.size)} · ${fmtSize(videos.sumOf { it.size })}"
         }
-        c.addView(a.button("עיון ומחיקה", pal, pal.accentFill) { a.push(GalleryScreen(a, WaLibrary(w))) }, buttonLp())
+        c.addView(a.button("עיון ומחיקה", pal, pal.accentFill) { a.push(GalleryScreen(a, WaLibrary(a, w))) }, buttonLp())
         c.addView(a.button("מחיקה לפי קבוצה", pal) { byGroupHelp(w) }, buttonLp())
     }
 

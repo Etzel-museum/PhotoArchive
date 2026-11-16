@@ -17,7 +17,7 @@ class HomeScreen(a: MainActivity) : Screen(a) {
         body.addView(big("התמונות שלי", "צפייה, סינון ומחיקה") { a.push(GalleryScreen(a, ArchiveLibrary(a))) })
         body.addView(big("איסוף תמונות מהטלפון", "העברת התמונות מהגלריה לארכיון") { a.push(ScanScreen(a)) })
         body.addView(big("וואטסאפ", "גיבוי הצ'אטים וניקוי תמונות וסרטונים") { a.push(WhatsAppScreen(a)) })
-        body.addView(big("העברה מ-Google Photos", "בגרסה הבאה", enabled = false) {})
+        body.addView(big("העברה מ-Google Photos", "ייצוא דרך Google Takeout וייבוא לארכיון") { a.push(TakeoutScreen(a)) })
         body.addView(big("הגדרות", "מיקום הארכיון וסל המחזור") { a.push(SettingsScreen(a)) })
     }
 

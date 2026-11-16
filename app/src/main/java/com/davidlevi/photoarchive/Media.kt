@@ -22,9 +22,18 @@ enum class Src(val key: String, val he: String) {
     }
 }
 
-class MediaItem(val file: File, val time: Long, val src: Src, val video: Boolean, val size: Long) {
+/** [group] is the WhatsApp chat the file came from, when known (tagged from a chat export). */
+class MediaItem(
+    val file: File,
+    val time: Long,
+    val src: Src,
+    val video: Boolean,
+    val size: Long,
+    val group: String? = null
+) {
     /** year*100+month, for month headers and the year filter. */
     val ym: Int = zoned(time).let { it.year * 100 + it.monthValue }
+    val isWhatsApp: Boolean get() = src == Src.WHATSAPP || src == Src.WA_RECEIVED || src == Src.WA_SENT
 }
 
 object Media {
@@ -63,7 +72,8 @@ object Media {
         return null
     }
 
-    private fun exifDate(f: File): Long? = runCatching {
+    /** EXIF date written by a camera, if the file has one. */
+    fun exifTime(f: File): Long? = runCatching {
         val e = ExifInterface(f)
         val s = e.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)
             ?: e.getAttribute(ExifInterface.TAG_DATETIME) ?: return null
@@ -82,13 +92,37 @@ object Media {
         }
     }
 
-    /** Best guess of when a photo/video was taken: EXIF, then the file name, then video metadata, then mtime. */
-    fun takenTime(f: File): Long {
+    /** When a photo/video was taken, from EXIF, the file name or video metadata; null if none says. */
+    fun knownTime(f: File): Long? {
         val video = isVideo(f)
-        return (if (video) null else exifDate(f))
+        return (if (video) null else exifTime(f))
             ?: dateFromName(f.name)
             ?: (if (video) videoDate(f) else null)
-            ?: f.lastModified()
+    }
+
+    /** [knownTime], else the file's modification time. */
+    fun takenTime(f: File): Long = knownTime(f) ?: f.lastModified()
+
+    /** Writes the taken date into a JPEG that has none (e.g. a downloaded image), so other apps see it too. */
+    fun writeExifTime(f: File, t: Long) {
+        if (f.extension.lowercase() !in setOf("jpg", "jpeg")) return
+        runCatching {
+            val e = ExifInterface(f)
+            val s = zoned(t).toLocalDateTime().format(exifFormat)
+            e.setAttribute(ExifInterface.TAG_DATETIME_ORIGINAL, s)
+            e.setAttribute(ExifInterface.TAG_DATETIME, s)
+            e.saveAttributes()
+        }
+    }
+
+    private val cameraName = Regex("^(IMG|VID|PXL|DSC|DSCN|MVIMG|PANO|BURST|MOV)[_-]?\\d", RegexOption.IGNORE_CASE)
+
+    /** Source of a file from Google Photos, judged by its name only. */
+    fun sourceByName(name: String): Src = when {
+        isWhatsAppName(name) -> Src.WHATSAPP
+        name.contains("screenshot", ignoreCase = true) -> Src.SCREENSHOT
+        cameraName.containsMatchIn(name) -> Src.CAMERA
+        else -> Src.OTHER
     }
 
     fun sourceOf(f: File): Src {

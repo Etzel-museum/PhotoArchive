@@ -88,7 +88,8 @@ class ViewerScreen(
         pos = pos.coerceIn(0, items.size - 1)
         val m = items[pos]
         play.visibility = if (m.video) View.VISIBLE else View.GONE
-        info.text = "${fmtDate(m.time)} · ${fmtSize(m.size)} · ${m.src.he}\n${pos + 1} מתוך ${fmtCount(items.size)}"
+        val from = if (m.group != null) "${m.src.he} – ${m.group}" else m.src.he
+        info.text = "${fmtDate(m.time)} · ${fmtSize(m.size)} · $from\n${pos + 1} מתוך ${fmtCount(items.size)}"
         image.setImageDrawable(null)
         val t = ++token
         a.async({ runCatching { decode(m) }.getOrNull() }) { if (t == token) image.setImageBitmap(it) }

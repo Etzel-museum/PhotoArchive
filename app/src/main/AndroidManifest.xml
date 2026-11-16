@@ -39,6 +39,27 @@
             </intent-filter>
         </activity>
 
+        <!-- Share target for WhatsApp "Export chat": tags that chat's files with its name. -->
+        <activity
+            android:name=".GroupTagActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="תיוג קבוצה בארכיון"
+            android:theme="@style/ShareTheme">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+        </activity>
+
         <!-- Hands archive files to other apps (share, video player). -->
         <provider
             android:name="androidx.core.content.FileProvider"

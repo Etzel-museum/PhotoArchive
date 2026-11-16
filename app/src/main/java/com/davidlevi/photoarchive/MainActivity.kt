@@ -3,6 +3,7 @@ package com.davidlevi.photoarchive
 import android.Manifest
 import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.MediaScannerConnection
@@ -20,6 +21,11 @@ import android.widget.ScrollView
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import java.io.File
+
+/** "Access all files" on Android 11+, the old storage permission on Android 10. */
+fun Context.hasStorageAccess(): Boolean =
+    if (Build.VERSION.SDK_INT >= 30) Environment.isExternalStorageManager()
+    else checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
 
 /** A full-screen page; MainActivity keeps them on a back stack. */
 abstract class Screen(val a: MainActivity) {
@@ -68,9 +74,7 @@ class MainActivity : Activity() {
         if (top is PermissionScreen) { if (hasAccess()) start() } else top.onShow()
     }
 
-    fun hasAccess(): Boolean =
-        if (Build.VERSION.SDK_INT >= 30) Environment.isExternalStorageManager()
-        else checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+    fun hasAccess(): Boolean = hasStorageAccess()
 
     fun requestAccess() {
         if (Build.VERSION.SDK_INT >= 30) {

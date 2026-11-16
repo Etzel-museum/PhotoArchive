@@ -64,11 +64,16 @@ class Archive(ctx: Context) {
         tmp.renameTo(indexFile)
     }
 
-    private fun rel(f: File) = f.path.removePrefix(root.path + "/")
+    /** Path inside the archive ("2019/03/IMG_1.jpg"). */
+    fun rel(f: File) = f.path.removePrefix(root.path + "/")
+
+    private fun dirFor(time: Long): File =
+        zoned(time).let { File(root, String.format(Locale.US, "%04d/%02d", it.year, it.monthValue)) }
 
     /** Every photo/video in the archive, newest first. */
     fun items(): List<MediaItem> {
         ensure()
+        val groups = groups()
         val out = ArrayList<MediaItem>()
         root.listFiles()?.forEach { y ->
             if (!y.isDirectory || !yearDir.matches(y.name)) return@forEach
@@ -79,7 +84,8 @@ class Archive(ctx: Context) {
                     e?.first ?: Media.dateFromName(f.name) ?: f.lastModified(),
                     e?.second ?: Media.sourceOf(f),
                     Media.isVideo(f),
-                    f.length()
+                    f.length(),
+                    groups[f.name]
                 )
             }
         }
@@ -97,19 +103,73 @@ class Archive(ctx: Context) {
      * Moves [f] into YYYY/MM of [time]. If an identical file is already archived,
      * [f] is just deleted (DUPLICATE). The caller saves the index when done.
      */
-    fun add(f: File, time: Long, src: Src, sizes: MutableMap<Long, MutableList<File>>): Added {
+    fun add(
+        f: File,
+        time: Long,
+        src: Src,
+        sizes: MutableMap<Long, MutableList<File>>,
+        onMoved: (File) -> Unit = {}
+    ): Added {
         val len = f.length()
         sizes[len]?.forEach { old ->
             if (sameContent(old, f)) return if (f.delete()) Added.DUPLICATE else Added.FAILED
         }
-        val z = zoned(time)
-        val dir = File(root, String.format(Locale.US, "%04d/%02d", z.year, z.monthValue))
+        val dir = dirFor(time)
         dir.mkdirs()
         val dest = freeName(dir, f.name)
         if (!moveFile(f, dest)) return Added.FAILED
         synchronized(this) { index[rel(dest)] = time to src }
         sizes.getOrPut(len) { mutableListOf() } += dest
+        onMoved(dest)
         return Added.MOVED
+    }
+
+    /** Corrects the taken date of an archived file, moving it to the right YYYY/MM. Returns its new path. */
+    @Synchronized
+    fun setTime(relPath: String, time: Long): File? {
+        val f = File(root, relPath)
+        if (!f.exists()) return null
+        val src = index[relPath]?.second ?: Media.sourceOf(f)
+        val dir = dirFor(time)
+        var dest = f
+        if (f.parentFile?.path != dir.path) {
+            dir.mkdirs()
+            dest = freeName(dir, f.name)
+            if (!f.renameTo(dest)) dest = f
+        }
+        index.remove(relPath)
+        index[rel(dest)] = time to src
+        return dest
+    }
+
+    // ---- WhatsApp groups, tagged from chat exports ----
+
+    private val groupsFile get() = File(root, ".wa-groups.json")
+    private val groupMap = HashMap<String, String>()
+    private var groupsFor: String? = null
+
+    /** WhatsApp file name -> chat name. */
+    @Synchronized
+    fun groups(): Map<String, String> {
+        if (groupsFor != root.path) {
+            groupMap.clear()
+            groupsFor = root.path
+            runCatching {
+                val o = JSONObject(groupsFile.readText())
+                for (k in o.keys()) groupMap[k] = o.getString(k)
+            }
+        }
+        return HashMap(groupMap)
+    }
+
+    @Synchronized
+    fun tagGroup(names: Collection<String>, group: String) {
+        ensure()
+        groups()
+        for (n in names) groupMap[n] = group
+        val o = JSONObject()
+        for ((k, v) in groupMap) o.put(k, v)
+        groupsFile.writeText(o.toString())
     }
 
     // ---- trash ----

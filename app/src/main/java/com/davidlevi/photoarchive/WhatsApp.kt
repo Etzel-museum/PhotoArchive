@@ -57,17 +57,21 @@ object WhatsApp {
             it.isDirectory && (it.name.endsWith("Images") || it.name.endsWith("Video") || it.name.endsWith("Animated Gifs"))
         } ?: emptyList()
 
-    /** WhatsApp's photos/videos where they are (they are never moved – that would break the chats). */
-    fun mediaItems(w: WaApp): List<MediaItem> {
+    /**
+     * WhatsApp's photos/videos where they are (they are never moved – that would break the chats).
+     * [groups] tags them with their chat; [asSrc] overrides the received/sent source.
+     */
+    fun mediaItems(w: WaApp, groups: Map<String, String>, asSrc: Src? = null): List<MediaItem> {
         val out = ArrayList<MediaItem>()
         for (d in mediaDirs(w)) {
             d.walkTopDown().filter { it.isFile && Media.isMedia(it) }.forEach { f ->
                 out += MediaItem(
                     f,
                     Media.dateFromName(f.name) ?: f.lastModified(),
-                    if (f.parentFile?.name == "Sent") Src.WA_SENT else Src.WA_RECEIVED,
+                    asSrc ?: if (f.parentFile?.name == "Sent") Src.WA_SENT else Src.WA_RECEIVED,
                     Media.isVideo(f),
-                    f.length()
+                    f.length(),
+                    groups[f.name]
                 )
             }
         }
@@ -77,8 +81,8 @@ object WhatsApp {
 }
 
 /** WhatsApp's media as a gallery library. */
-class WaLibrary(private val w: WaApp) : Library {
+class WaLibrary(private val a: MainActivity, private val w: WaApp) : Library {
     override val title = "${w.name} – תמונות וסרטונים"
     override val sources = listOf(Src.WA_RECEIVED, Src.WA_SENT)
-    override fun load() = WhatsApp.mediaItems(w)
+    override fun load() = WhatsApp.mediaItems(w, a.archive.groups())
 }
